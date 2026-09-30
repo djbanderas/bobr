@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>bobr.monster</title>
+<!--
+  Привратник мини-приложения bobr.monster. Лежит в открытом интернете
+  (GitHub Pages), потому что сама панель живёт внутри VPN: без него телефон до
+  неё не достаёт, и Телеграм показывал бы свою ошибку «не удалось открыть».
+
+  Что делает: проверяет, виден ли сервер панели. Виден — сразу уходит в
+  панель, унося с собой подпись Телеграма (она в адресе после #). Не виден —
+  говорит «похоже, VPN выключен» и ведёт в бота: тот разберётся, выключен VPN
+  или отключён за долг, и в последнем случае предложит пополнить.
+
+  Данных здесь нет никаких, и адрес панели не настраивается снаружи: иначе
+  чужая ссылка могла бы увести подпись Телеграма на чужой сервер.
+-->
+<style>
+  :root { --amber: #F0891F; --amber-soft: #FDF0DF; --ink: #171310; --muted: #6E655D;
+          --line: #E8E1D7; --bg: #FFFCF7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 440px; margin: 0 auto; padding: 32px 16px; text-align: center; }
+  .spin { width: 28px; height: 28px; margin: 40px auto 14px; border-radius: 50%;
+          border: 3px solid var(--amber-soft); border-top-color: var(--amber);
+          animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .muted { color: var(--muted); }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 18px;
+          padding: 20px 18px; margin-top: 24px; text-align: left; }
+  h1 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.01em; }
+  p { margin: 0 0 10px; }
+  .btn { display: block; width: 100%; margin-top: 12px; padding: 14px; border: 0;
+         border-radius: 14px; font: 700 16px system-ui, sans-serif; cursor: pointer;
+         text-align: center; text-decoration: none; }
+  .btn.main { background: var(--amber); color: #fff; }
+  .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div id="wait">
+    <div class="spin"></div>
+    <p class="muted">Открываем панель…</p>
+  </div>
+
+  <div id="off" hidden>
+    <div class="card">
+      <h1>Похоже, VPN выключен</h1>
+      <p class="muted">Панель bobr.monster открывается только через наш VPN —
+        она живёт внутри него. Включите VPN в приложении AmneziaVPN или
+        AmneziaWG и нажмите «Попробовать снова».</p>
+      <p class="muted">VPN отключился сам или ещё не установлен? Бот подскажет,
+        что делать, и поможет пополнить счёт.</p>
+    </div>
+    <button class="btn main" id="retry" type="button">Попробовать снова</button>
+    <a class="btn ghost" id="bot" href="https://t.me/bobrmonster_bot?start=novpn">Открыть бота</a>
+  </div>
+</main>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  (function () {
+    var PANEL = 'https://in.bobr.monster';
+    var BOT = 'https://t.me/bobrmonster_bot?start=novpn';
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor('#FFFCF7');
+                    tg.setBackgroundColor('#FFFCF7'); } catch (e) {} }
+
+    var wait = document.getElementById('wait');
+    var off = document.getElementById('off');
+
+    // Подпись Телеграма приходит в адресе после #. Панель берёт её оттуда же,
+    // поэтому уносим её с собой как есть.
+    function enter() {
+      window.location.replace(PANEL + '/tg/app' + window.location.hash);
+    }
+
+    function check() {
+      wait.hidden = false;
+      off.hidden = true;
+      var done = false;
+      var fail = function () {
+        if (done) return;
+        done = true;
+        wait.hidden = true;
+        off.hidden = false;
+        try { tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
+      };
+      // Ответ сервера нам не нужен — только то, что он ответил. no-cors: так
+      // запрос проходит без разрешений со стороны панели; ошибка сети — это и
+      // есть «сервер не виден».
+      var timer = setTimeout(fail, 5000);
+      fetch(PANEL + '/health?gate=' + Date.now(), {mode: 'no-cors', cache: 'no-store'})
+        .then(function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          enter();
+        }, function () { clearTimeout(timer); fail(); });
+    }
+
+    document.getElementById('retry').addEventListener('click', check);
+    document.getElementById('bot').addEventListener('click', function (e) {
+      if (tg && tg.openTelegramLink) {
+        e.preventDefault();
+        tg.openTelegramLink(BOT);
+        try { tg.close(); } catch (err) {}
+      }
+    });
+    check();
+  })();
+</script>
+</body>
+</html>
